@@ -1,0 +1,23 @@
+[project]
+name = "inc-url-analyzer"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.14.1",
+    "beautifulsoup4>=4.13.4",
+    "facebook-scraper>=0.2.59",
+    "fastapi[standard]>=0.115.13",
+    "google-api-python-client>=2.173.0",
+    "instaloader>=4.13.2",
+    "lxml[html-clean]>=5.4.0",
+    "sqlmodel>=0.0.24",
+    "uvicorn>=0.33.0",
+    "yt-dlp>=2025.6.9",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.0",
+]
