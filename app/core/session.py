@@ -8,11 +8,9 @@ engine = create_engine(str(settings.DATABASE_URL), echo=True)
 def init_db():
     """Initialize the database and create tables."""
     try:
-        # Import all models to ensure they are registered with SQLModel metadata
-        # These imports are here to avoid circular imports
-        from app.models.post import Post
-        from app.models.url import URL
         from app.models.entity import Entity
+        from app.models.url import URL
+        from app.models.post import Post
         from app.models.blog_web_post import BlogWebPost
 
         SQLModel.metadata.create_all(engine)

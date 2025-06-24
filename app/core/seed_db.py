@@ -29,7 +29,6 @@ def seed_urls(session: Session, entities: list[Entity], count: int = 10) -> list
     for _ in range(count):
         url = URL(
             url=fake.url(),
-            engagementRate=random.randint(0, 100),
             entityId=random.choice(entities).id
         )
         session.add(url)
@@ -45,6 +44,7 @@ def seed_posts(session: Session, urls: list[URL]):
             comments=random.randint(0, 500),
             likes=random.randint(0, 10000),
             views=random.randint(0, 100000),
+            engagementRate=random.randint(0, 100),
             dateAnalysed=random.randint(20220101, 20250624),
             isBrokenOrDeleted=fake.boolean(),
             isFetched=fake.boolean(),
@@ -58,6 +58,7 @@ def seed_blog_web_posts(session: Session, urls: list[URL]):
     for url in selected_urls:
         blog = BlogWebPost(
             trafficCount=random.randint(0, 10000),
+            engagementRate=random.randint(0, 100),
             dateAnalysed=random.randint(20220101, 20250624),
             isBrokenOrDeleted=fake.boolean(),
             isFetched=fake.boolean(),
