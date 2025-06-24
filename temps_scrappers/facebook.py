@@ -171,7 +171,7 @@ def get_facebook_reel_data(post_url: str):
     try:
         with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
             info = ydl.extract_info(post_url, download=False)
-            print(info.__dict__)
+            print(info)
 
             # Parse stats from uploader text
             uploader_text = info.get("uploader", "")
@@ -193,6 +193,6 @@ def get_facebook_reel_data(post_url: str):
 
 # Example usage
 if __name__ == "__main__":
-    post_url = "https://www.facebook.com/reel/19HCHSBaQR/"
+    post_url = "https://www.facebook.com/share/v/1B1Lwvi6JB/"
     result = get_facebook_reel_data(post_url)
     print(result)
