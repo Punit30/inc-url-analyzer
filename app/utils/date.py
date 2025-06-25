@@ -1,5 +1,6 @@
 from datetime import datetime
 from pytz import timezone
+from typing import Optional
 
 def get_now_for_timezone(tz: str="UTC") -> datetime:
     """
@@ -10,7 +11,7 @@ def get_now_for_timezone(tz: str="UTC") -> datetime:
     """
     return datetime.now(tz=timezone(tz))
 
-def format_timestamp(dt: datetime, fmt: str="%Y-%m-%d %H:%M:%S") -> str:
+def format_timestamp(dt: datetime, fmt: Optional[str]="%Y-%m-%d %H:%M:%S") -> str:
     """
     Format a datetime object into a string.
     
@@ -18,4 +19,22 @@ def format_timestamp(dt: datetime, fmt: str="%Y-%m-%d %H:%M:%S") -> str:
     :param fmt: Format string (default is "%Y-%m-%d %H:%M:%S").
     :return: Formatted date string.
     """
+    return dt.strftime(fmt)
+
+def format_date_str(dt_str: str, fmt: Optional[str]="%Y-%m-%d %H:%M:%S") -> str:
+    """
+        Convert a date string into a formatted date string.
+
+        Parameters:
+            dt_str (str): Input date string in ISO or common formats.
+            fmt (str): Desired output format (default is "%Y-%m-%d %H:%M:%S").
+
+        Returns:
+            str: Formatted date string.
+        """
+    try:
+        dt = datetime.fromisoformat(dt_str)
+    except ValueError:
+        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+
     return dt.strftime(fmt)
