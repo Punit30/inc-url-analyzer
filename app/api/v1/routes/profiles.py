@@ -11,8 +11,8 @@ from app.models.entity import Entity
 from app.models.url import URL
 from app.models.enums.platform import PlatformEnum
 from app.models.enums.profile import ProfileSortBy
-from app.schemas.Responses.error_response import ErrorResponse
-from app.schemas.Responses.profile_response import (
+from app.schemas.responses.error import ErrorResponse
+from app.schemas.responses.profile_response import (
     ProfileAnalyticsResponse,
     ProfileMetricsResponse,
 )
