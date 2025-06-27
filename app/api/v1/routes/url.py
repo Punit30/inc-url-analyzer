@@ -139,9 +139,9 @@ async def url_listing(
                         "url": url_obj.url,
                         "engagement_rate": getattr(item, "engagementRate", 0),
                         "platform": url_obj.entity.platform,
-                        "date_uploaded": url_obj.created_date.strftime("%Y-%m-%d"),
+                        "date_uploaded": url_obj.created_date.isoformat(),
                         "date_analyzed": (
-                            getattr(item, "dateAnalysed", None).strftime("%Y-%m-%d")
+                            getattr(item, "dateAnalysed", None).isoformat()
                             if getattr(item, "dateAnalysed", None) else None
                         ),
                         "is_fetched": getattr(item, "isFetched", False),
@@ -152,7 +152,7 @@ async def url_listing(
                     if getattr(item, "engagementRate", 0) > url_data_map[url_id]["engagement_rate"]:
                         url_data_map[url_id]["engagement_rate"] = getattr(item, "engagementRate", 0)
                         url_data_map[url_id]["date_analyzed"] = (
-                            getattr(item, "dateAnalysed", None).strftime("%Y-%m-%d")
+                            getattr(item, "dateAnalysed", None).isoformat()
                             if getattr(item, "dateAnalysed", None) else None
                         )
                         url_data_map[url_id]["is_fetched"] = getattr(item, "isFetched", False)
@@ -164,8 +164,9 @@ async def url_listing(
         url_details.sort(
             key=lambda x: (
                 x.get("engagement_rate") or 0,
-                datetime.strptime(
-                    x.get("date_uploaded", "1900-01-01"), "%Y-%m-%d")
+                datetime.fromisoformat(
+                    (x.get("date_uploaded") or "1900-01-01T00:00:00").replace("Z", "")
+                )
             ),
             reverse=reverse
         )
