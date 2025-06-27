@@ -72,7 +72,6 @@ def get_platform_summary(
         "youtube_percent": round((platform_counts[PlatformEnum.YOUTUBE] / total_urls) * 100, 2) if total_urls else 0,
         "top_performer": top_performer
     }
-    }
     
 
 def is_valid_url(url: str) -> bool:
