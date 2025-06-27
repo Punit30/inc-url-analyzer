@@ -2,12 +2,13 @@ import os
 from app.schemas.responses.url import URLSuccessItem
 import boto3
 import json
+from app.core.configs import settings
 
 sqs = boto3.client(
     "sqs",
-    region_name="us-south-1",
-    aws_access_key_id=os.environ.get('ACCESS_KEY_ID'),
-    aws_secret_access_key=os.environ.get('SECRET_ACCESS_KEY')
+    region_name="ap-south-1",
+    aws_access_key_id=str(settings.ACCESS_KEY_ID),
+    aws_secret_access_key=str(settings.SECRET_ACCESS_KEY)
 )
 
 QUEUE_MAP = {

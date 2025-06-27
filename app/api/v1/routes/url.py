@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from app.models.enums.platform import PlatformEnum
@@ -373,7 +373,6 @@ async def upload_urls(
             new_url = URL(
                 url=raw_url,
                 type=url_type,
-                entityId=42,
             )
             db.add(new_url)
             db.commit()
@@ -387,7 +386,7 @@ async def upload_urls(
                     likes=0,
                     views=0,
                     engagementRate=0,
-                    dateAnalysed=0,
+                    dateAnalysed=datetime.now(timezone.utc),
                     isBrokenOrDeleted=False,
                     isFetched=False
                 )
@@ -400,7 +399,7 @@ async def upload_urls(
                     urlId=new_url.id,
                     trafficCount=0,
                     engagementRate=0,
-                    dateAnalysed=0,
+                    dateAnalysed=datetime.now(timezone.utc),
                     isBrokenOrDeleted=False,
                     isFetched=False
                 )

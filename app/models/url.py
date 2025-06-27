@@ -19,7 +19,7 @@ class URL(AuditableBaseModel, table=True):
     type: URLTypeEnum
 
     # Foreign key 
-    entityId: int = Field(sa_column=Column("entity_id", ForeignKey("entity.id"), nullable=False))
+    entityId: int = Field(sa_column=Column("entity_id", ForeignKey("entity.id"), nullable=True))
 
     # Relationships
     entity: Optional["Entity"] = Relationship(back_populates="urls")
