@@ -1,3 +1,4 @@
+import datetime
 import random
 
 from faker import Faker
@@ -53,7 +54,7 @@ def seed_posts(session: Session, urls: list[URL]):
                 likes=random.randint(0, 10000),
                 views=random.randint(0, 100000),
                 engagementRate=random.randint(0, 100),
-                dateAnalysed=random.randint(20220101, 20250624),
+                dateAnalysed=datetime.datetime.now().strftime("%Y-%m-%d"),
                 isBrokenOrDeleted=fake.boolean(),
                 isFetched=fake.boolean(),
                 urlId=url.id
@@ -71,7 +72,7 @@ def seed_blog_web_posts(session: Session, urls: list[URL]):
             blog = BlogWebPost(
                 trafficCount=random.randint(0, 10000),
                 engagementRate=random.randint(0, 100),
-                dateAnalysed=random.randint(20220101, 20250624),
+                dateAnalysed=datetime.datetime.now().strftime("%Y-%m-%d"),
                 isBrokenOrDeleted=fake.boolean(),
                 isFetched=fake.boolean(),
                 urlId=url.id

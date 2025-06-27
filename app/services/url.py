@@ -1,17 +1,20 @@
 from datetime import date
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
+from collections import defaultdict
+
 from sqlmodel import Session, select, func
-from app.models.post import Post
+
 from app.models.blog_web_post import BlogWebPost
-from app.models.url import URL
-from app.models.enums.platform import PlatformEnum
 from app.models.entity import Entity
+from app.models.enums.platform import PlatformEnum
 from app.models.enums.url import URLTypeEnum
+from app.models.post import Post
+from app.models.url import URL
 
 
 def get_platform_summary(
-    db: Session, created_date_filter: Optional[date] = None
-) -> Dict[str, any]:
+        db: Session, created_date_filter: Optional[date] = None
+) -> Dict[str, Any]:
     platform_counts = {
         PlatformEnum.FACEBOOK: 0,
         PlatformEnum.INSTAGRAM: 0,
@@ -19,7 +22,7 @@ def get_platform_summary(
         PlatformEnum.YOUTUBE: 0
     }
 
-    total_urls = 0
+    url_data_map = {}
 
     url_type_filters = [
         (Post, URLTypeEnum.POST),
@@ -33,11 +36,33 @@ def get_platform_summary(
         results = db.exec(query).all()
 
         for item in results:
-            if not item.url or not item.url.entity or item.url.type != url_type:
+            url_obj = item.url
+            if not url_obj or not url_obj.entity or url_obj.type != url_type:
                 continue
-            platform = item.url.entity.platform
-            platform_counts[platform] += 1
-            total_urls += 1
+
+            url_id = url_obj.id
+            engagement = getattr(item, "engagementRate", 0)
+
+            # If URL not seen before or this post/blog has higher engagement, update
+            if (
+                url_id not in url_data_map or
+                engagement > url_data_map[url_id]["engagement_rate"]
+            ):
+                url_data_map[url_id] = {
+                    "url_id": url_obj.id,
+                    "url": url_obj.url,
+                    "platform": url_obj.entity.platform,
+                    "engagement_rate": engagement
+                }
+
+    total_urls = len(url_data_map)
+
+    # Re-calculate platform counts from distinct URLs only
+    for url_info in url_data_map.values():
+        platform_counts[url_info["platform"]] += 1
+
+    # Get top performer
+    top_performer = max(url_data_map.values(), key=lambda x: x["engagement_rate"], default=None)
 
     return {
         "total": total_urls,
@@ -45,4 +70,5 @@ def get_platform_summary(
         "instagram_percent": round((platform_counts[PlatformEnum.INSTAGRAM] / total_urls) * 100, 2) if total_urls else 0,
         "website_percent": round((platform_counts[PlatformEnum.WEBSITE] / total_urls) * 100, 2) if total_urls else 0,
         "youtube_percent": round((platform_counts[PlatformEnum.YOUTUBE] / total_urls) * 100, 2) if total_urls else 0,
+        "top_performer": top_performer
     }
