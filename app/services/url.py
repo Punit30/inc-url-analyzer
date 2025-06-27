@@ -73,7 +73,6 @@ def get_platform_summary(
         "top_performer": top_performer
     }
     
-    
 
 def is_valid_url(url: str) -> bool:
     try:
