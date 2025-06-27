@@ -7,6 +7,10 @@ from app.models.enums.platform import PlatformEnum
 from app.models.enums.url import URLTypeEnum
 
 
+class SimpleSuccessResponse(BaseModel):
+    success: bool
+    message: str
+    
 class TotalURLCountResponse(BaseModel):
     total_urls: int | None
 
@@ -78,6 +82,7 @@ class URLSuccessItem(BaseModel):
     platform: PlatformEnum
     post_id: Optional[int] = None
     web_id: Optional[int] = None
+    is_reanalysis: Optional[bool] = False
 
 
 class URLUploadResponse(BaseModel):
