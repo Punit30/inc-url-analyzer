@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     # SQS Configs
     SQS_QUEUE_URL: Optional[str] = None
     SQS_QUEUE_ARN: Optional[str] = None
+    
+    ACCESS_KEY_ID: Optional[str] = None
+    SECRET_ACCESS_KEY: Optional[str] = None
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
