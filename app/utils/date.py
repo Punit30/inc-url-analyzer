@@ -35,6 +35,6 @@ def format_date_str(dt_str: str, fmt: Optional[str]="%Y-%m-%d %H:%M:%S") -> str:
     try:
         dt = datetime.fromisoformat(dt_str)
     except ValueError:
-        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+        dt = datetime.strptime(dt_str, fmt)
 
     return dt.strftime(fmt)
