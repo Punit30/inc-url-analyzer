@@ -1,15 +1,26 @@
-from datetime import datetime
 from pytz import timezone
 from typing import Optional
+from datetime import datetime, timedelta, date
 
-def get_now_for_timezone(tz: str="UTC") -> datetime:
+
+def get_utc_range_from_ist_date(ist_date: date):
+    # Start and end of IST day
+    start_ist = datetime.combine(ist_date, datetime.min.time())
+    end_ist = datetime.combine(ist_date, datetime.max.time())
+    # Convert IST to UTC (IST = UTC+5:30)
+    ist_offset = timedelta(hours=5, minutes=30)
+    start_utc = (start_ist - ist_offset).replace(tzinfo=timezone("UTC"))
+    end_utc = (end_ist - ist_offset).replace(tzinfo=timezone("UTC"))
+    return start_utc, end_utc
+
+def get_now_for_timezone(tz: str="UTC") -> str:
     """
     Get the current timestamp in a specific timezone.
     
     :param tz: Name of the timezone (e.g., 'America/New_York'). Defaults to 'UTC'.
     :return: Current timestamp as a datetime object.
     """
-    return datetime.now(tz=timezone(tz))
+    return datetime.now(tz=timezone(tz)).isoformat()
 
 def format_timestamp(dt: datetime, fmt: Optional[str]="%Y-%m-%d %H:%M:%S") -> str:
     """

@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "INC URL Analyzer"
+    PROJECT_NAME: str = "IYC URL Analyzer"
     PROJECT_DESCRIPTION: str = "A URL analyzer to manage social media reach"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"

@@ -1,8 +1,6 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from app.models.enums.platform import PlatformEnum
-from app.utils.sqs import push_to_sqs
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, func, Session
@@ -10,12 +8,16 @@ from sqlmodel import select, func, Session
 from app.core.session import get_session
 from app.models.blog_web_post import BlogWebPost
 from app.models.entity import Entity
+from app.models.enums.platform import PlatformEnum
 from app.models.enums.url import URLListSortingEnum, URLTypeEnum
 from app.models.post import Post
 from app.models.url import URL
 from app.schemas.responses.error import ErrorResponse
-from app.schemas.responses.url import SimpleSuccessResponse, TotalURLCountResponse, URLListingResponse, URLAnalysisSummaryResponse, OverallURLSummaryResponse, URLSuccessItem, URLUploadResponse, URLAnalysisHistoryResponse
+from app.schemas.responses.url import SimpleSuccessResponse, TotalURLCountResponse, URLListingResponse, \
+    URLAnalysisSummaryResponse, OverallURLSummaryResponse, URLSuccessItem, URLUploadResponse, URLAnalysisHistoryResponse
 from app.services.url import detect_platform, get_platform_summary, is_valid_url
+from app.utils.sqs import push_to_sqs
+from app.utils.date import  get_utc_range_from_ist_date
 
 router = APIRouter()
 
@@ -95,21 +97,20 @@ router = APIRouter()
     tags=["URL"]
 )
 async def url_listing(
-    date_uploaded: str = Query(..., description="Filter URLs by creation date (YYYY-MM-DD)"),
-    sort_by: Optional[URLListSortingEnum] = Query(
-        "engagement_rate_desc",
-        description="Sort by engagement rate: engagement_rate_asc or engagement_rate_desc"
-    ),
-    db: Session = Depends(get_session)
+        date_uploaded: str = Query(..., description="Filter URLs by creation date (YYYY-MM-DD)"),
+        sort_by: Optional[URLListSortingEnum] = Query(
+            "engagement_rate_desc",
+            description="Sort by engagement rate: engagement_rate_asc or engagement_rate_desc"
+        ),
+        db: Session = Depends(get_session)
 ):
     try:
         try:
-            created_date_filter = datetime.strptime(date_uploaded, "%Y-%m-%d").date()
+            start_utc , end_utc = get_utc_range_from_ist_date(datetime.strptime(date_uploaded, "%Y-%m-%d"))
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
 
         url_data_map = {}
-
 
         url_type_filters = [
             (Post, URLTypeEnum.POST),
@@ -121,9 +122,8 @@ async def url_listing(
                 select(model)
                 .join(URL)
                 .join(Entity)
-                .where(func.date(URL.created_date) == created_date_filter)
+                .where(URL.created_date.between(start_utc, end_utc))
             )
-
 
             results = db.exec(query).all()
 
@@ -178,8 +178,6 @@ async def url_listing(
             status_code=500, detail="Failed to fetch URL details.")
 
 
-
-
 @router.get("/summary", response_model=OverallURLSummaryResponse, responses={
     200: {"description": "Platform summary retrieved", "model": OverallURLSummaryResponse},
     500: {"model": ErrorResponse}
@@ -192,13 +190,12 @@ async def platform_summary(
         created_date_filter = None
         if date_uploaded:
             try:
-                created_date_filter = datetime.strptime(
-                    date_uploaded, "%Y-%m-%d").date()
+                start_utc , end_utc = get_utc_range_from_ist_date(datetime.strptime(date_uploaded, "%Y-%m-%d"))
             except ValueError:
                 raise HTTPException(
                     status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
 
-        summary = get_platform_summary(db, created_date_filter)
+        summary = get_platform_summary(db, start_utc, end_utc)
 
         return OverallURLSummaryResponse(
             total_urls_count=summary["total"],
@@ -259,7 +256,9 @@ async def get_url_analysis(url_id: int, db: Session = Depends(get_session)):
             "latest_views": None,
             "latest_comments": None,
             "latest_engagement_rate": 0.0,
-            "traffic_count": None
+            "traffic_count": None,
+            "is_broken_or_deleted": False,
+            "is_fetched": False
         }
 
         # Depending on URL type, fetch and update
@@ -270,7 +269,9 @@ async def get_url_analysis(url_id: int, db: Session = Depends(get_session)):
                     "latest_likes": latest_post.likes,
                     "latest_views": latest_post.views,
                     "latest_comments": latest_post.comments,
-                    "latest_engagement_rate": latest_post.engagementRate
+                    "latest_engagement_rate": latest_post.engagementRate,
+                    "is_broken_or_deleted": latest_post.isBrokenOrDeleted,
+                    "is_fetched": latest_post.isFetched
                 })
 
         elif url.type == URLTypeEnum.WEB_POST:
@@ -279,7 +280,9 @@ async def get_url_analysis(url_id: int, db: Session = Depends(get_session)):
                                   key=lambda b: b.dateAnalysed)
                 response_data.update({
                     "latest_engagement_rate": latest_blog.engagementRate,
-                    "traffic_count": latest_blog.trafficCount
+                    "traffic_count": latest_blog.trafficCount,
+                    "is_broken_or_deleted": latest_blog.isBrokenOrDeleted,
+                    "is_fetched": latest_blog.isFetched
                 })
 
         else:
@@ -291,6 +294,7 @@ async def get_url_analysis(url_id: int, db: Session = Depends(get_session)):
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to get URL analysis: {str(e)}")
+
 
 @router.get("/engagement-history/{url_id}", response_model=list[URLAnalysisHistoryResponse], responses={
     200: {"description": "Engagement history retrieved"},
@@ -316,19 +320,19 @@ async def get_url_engagement_history(url_id: int, db: Session = Depends(get_sess
         if url.type == URLTypeEnum.POST:
             for post in url.posts:
                 data_points.append(URLAnalysisHistoryResponse(
-                    date_analyzed=post.dateAnalysed,
+                    date_analyzed=post.dateAnalysed.date(),
                     likes=post.likes,
                     views=post.views,
                     comments=post.comments,
-                    engagement_rate=post.engagementRate
+                    engagement_rate=post.engagementRate,
                 ))
 
         elif url.type == URLTypeEnum.WEB_POST:
             for blog in url.blogWebPosts:
                 data_points.append(URLAnalysisHistoryResponse(
-                    date_analyzed=blog.dateAnalysed,
+                    date_analyzed=blog.dateAnalysed.date(),
                     traffic_count=blog.trafficCount,
-                    engagement_rate=blog.engagementRate
+                    engagement_rate=blog.engagementRate,
                 ))
 
         else:
@@ -338,13 +342,14 @@ async def get_url_engagement_history(url_id: int, db: Session = Depends(get_sess
         return sorted(data_points, key=lambda x: x.date_analyzed)
 
     except Exception as e:
+        print("ereresrr", e)
         raise HTTPException(status_code=500, detail=f"Failed to get engagement history: {str(e)}")
 
 
 @router.post("/upload-urls", response_model=URLUploadResponse, summary="Upload and classify URLs")
 async def upload_urls(
-    body: List[str] = Body(..., description="List of URLs to upload"),
-    db: Session = Depends(get_session)
+        body: List[str] = Body(..., description="List of URLs to upload"),
+        db: Session = Depends(get_session)
 ):
     added_count = 0
     success_urls: List[URLSuccessItem] = []
@@ -438,8 +443,8 @@ async def upload_urls(
              }
              )
 async def reanalyze_url(
-    body: Dict[str, int] = Body(..., example={"url_id": 123}),
-    db: Session = Depends(get_session)
+        body: Dict[str, int] = Body(..., example={"url_id": 123}),
+        db: Session = Depends(get_session)
 ):
     url_id = body.get("url_id")
     if not url_id:

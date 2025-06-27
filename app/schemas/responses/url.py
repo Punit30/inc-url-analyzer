@@ -63,6 +63,8 @@ class URLAnalysisSummaryResponse(BaseModel):
     post_url: str  # From URL.url
     url_type: URLTypeEnum  # From URL.type
     platform: PlatformEnum
+    is_broken_or_deleted: bool
+    is_fetched: bool
 
 class URLAnalysisHistoryResponse(BaseModel):
     date_analyzed: date

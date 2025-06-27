@@ -10,10 +10,11 @@ from app.models.enums.platform import PlatformEnum
 from app.models.enums.url import URLTypeEnum
 from app.models.post import Post
 from app.models.url import URL
+from datetime import datetime
 
 
 def get_platform_summary(
-        db: Session, created_date_filter: Optional[date] = None
+        db: Session, start_utc: Optional[datetime], end_utc: Optional[datetime] = None
 ) -> Dict[str, Any]:
     platform_counts = {
         PlatformEnum.FACEBOOK: 0,
@@ -31,8 +32,8 @@ def get_platform_summary(
 
     for model, url_type in url_type_filters:
         query = select(model).join(URL).join(Entity)
-        if created_date_filter:
-            query = query.where(func.date(URL.created_date) == created_date_filter)
+        if start_utc and end_utc:
+            query = query.where(URL.created_date.between(start_utc, end_utc))
         results = db.exec(query).all()
 
         for item in results:
