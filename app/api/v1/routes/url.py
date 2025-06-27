@@ -1,7 +1,9 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from app.models.enums.platform import PlatformEnum
+from app.utils.sqs import push_to_sqs
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, func, Session
 
@@ -13,8 +15,8 @@ from app.models.post import Post
 from app.models.url import URL
 from app.schemas.responses.error import ErrorResponse
 from app.schemas.responses.url import TotalURLCountResponse, URLListingResponse, URLAnalysisSummaryResponse, \
-    OverallURLSummaryResponse
-from app.services.url import get_platform_summary
+    OverallURLSummaryResponse, URLSuccessItem, URLUploadResponse
+from app.services.url import detect_platform, get_platform_summary, is_valid_url
 
 router = APIRouter()
 
@@ -24,7 +26,8 @@ router = APIRouter()
     500: {"model": ErrorResponse}
 }, summary="Get all URL with platform breakdown", tags=["URL"])
 async def url_listing(
-        date_uploaded: Optional[str] = Query(None, description="Filter URLs by creation date (YYYY-MM-DD)"),
+        date_uploaded: Optional[str] = Query(
+            None, description="Filter URLs by creation date (YYYY-MM-DD)"),
         sort_by: Optional[URLListSortingEnum] = Query("engagement_rate_desc",
                                                       description="Sort by engagement rate: engagement_rate_asc or engagement_rate_desc"),
         db: Session = Depends(get_session)):
@@ -32,9 +35,11 @@ async def url_listing(
         created_date_filter = None
         if date_uploaded:
             try:
-                created_date_filter = datetime.strptime(date_uploaded, "%Y-%m-%d").date()
+                created_date_filter = datetime.strptime(
+                    date_uploaded, "%Y-%m-%d").date()
             except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+                raise HTTPException(
+                    status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
 
         url_details = []
         url_type_filters = [
@@ -45,7 +50,8 @@ async def url_listing(
         for model, url_type in url_type_filters:
             query = select(model).join(URL).join(Entity)
             if created_date_filter:
-                query = query.where(func.date(URL.created_date) == created_date_filter)
+                query = query.where(
+                    func.date(URL.created_date) == created_date_filter)
             results = db.exec(query).all()
 
             for item in results:
@@ -71,7 +77,8 @@ async def url_listing(
         url_details.sort(
             key=lambda x: (
                 x.get("engagement_rate") or 0,
-                datetime.strptime(x.get("date_uploaded", "1900-01-01"), "%Y-%m-%d")
+                datetime.strptime(
+                    x.get("date_uploaded", "1900-01-01"), "%Y-%m-%d")
             ),
             reverse=reverse
         )
@@ -80,23 +87,28 @@ async def url_listing(
 
     except Exception as e:
         print(e)
-        raise HTTPException(status_code=500, detail="Failed to fetch URL details.")
+        raise HTTPException(
+            status_code=500, detail="Failed to fetch URL details.")
+
 
 @router.get("/summary", response_model=OverallURLSummaryResponse, responses={
     200: {"description": "Platform summary retrieved", "model": OverallURLSummaryResponse},
     500: {"model": ErrorResponse}
 }, summary="Get platform summary for all or by date", tags=["URL"])
 async def platform_summary(
-        date_uploaded: Optional[str] = Query(None, description="Filter URLs by creation date (YYYY-MM-DD)"),
+        date_uploaded: Optional[str] = Query(
+            None, description="Filter URLs by creation date (YYYY-MM-DD)"),
         db: Session = Depends(get_session)):
 
     try:
         created_date_filter = None
         if date_uploaded:
             try:
-                created_date_filter = datetime.strptime(date_uploaded, "%Y-%m-%d").date()
+                created_date_filter = datetime.strptime(
+                    date_uploaded, "%Y-%m-%d").date()
             except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+                raise HTTPException(
+                    status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
 
         summary = get_platform_summary(db, created_date_filter)
 
@@ -112,7 +124,8 @@ async def platform_summary(
 
     except Exception as e:
         print(e)
-        raise HTTPException(status_code=500, detail="Failed to fetch platform summary.")
+        raise HTTPException(
+            status_code=500, detail="Failed to fetch platform summary.")
 
 
 @router.get("/url-counts", response_model=TotalURLCountResponse,
@@ -126,7 +139,8 @@ async def url_count(db: Session = Depends(get_session)):
         total_urls: int | None = db.exec(select(func.count(URL.id))).first()
         return TotalURLCountResponse(total_urls=total_urls)
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err))
 
 
 @router.get("/analysis/{url_id}", response_model=URLAnalysisSummaryResponse, responses={
@@ -167,19 +181,22 @@ async def get_url_analysis(url_id: int, db: Session = Depends(get_session)):
 
         elif url.type == URLTypeEnum.WEB_POST:
             if url.blogWebPosts:
-                latest_blog = max(url.blogWebPosts, key=lambda b: b.dateAnalysed)
+                latest_blog = max(url.blogWebPosts,
+                                  key=lambda b: b.dateAnalysed)
                 response_data.update({
                     "latest_engagement_rate": latest_blog.engagementRate,
                     "traffic_count": latest_blog.trafficCount
                 })
 
         else:
-            raise HTTPException(status_code=400, detail=f"Unsupported URL type: {url.type}")
+            raise HTTPException(
+                status_code=400, detail=f"Unsupported URL type: {url.type}")
 
         return URLAnalysisSummaryResponse(**response_data)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get URL analysis: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get URL analysis: {str(e)}")
 
 # @router.get("/stats")
 # async def all_url_analysis(params: Dict[str, str], db: Session = Depends(get_session)):
@@ -234,3 +251,93 @@ async def get_url_analysis(url_id: int, db: Session = Depends(get_session)):
 #             "engagement_rate": top_url.engagementRate if top_url else 0
 #         }
 #     }
+
+
+@router.post("/upload-urls", response_model=URLUploadResponse, summary="Upload and classify URLs")
+async def upload_urls(
+    body: List[str] = Body(..., description="List of URLs to upload"),
+    db: Session = Depends(get_session)
+):
+    added_count = 0
+    success_urls: List[URLSuccessItem] = []
+    failed_urls: List[str] = []
+
+    unique_urls = list(set(url.strip() for url in body if url.strip()))
+
+    for raw_url in unique_urls:
+        if not is_valid_url(raw_url):
+            failed_urls.append(raw_url)
+            continue
+
+        existing_url = db.exec(select(URL).where(URL.url == raw_url)).first()
+        if existing_url:
+            failed_urls.append(f"{raw_url} (already exists)")
+            continue
+
+        try:
+            platform = detect_platform(raw_url)
+            url_type = (
+                URLTypeEnum.POST
+                if platform in [PlatformEnum.FACEBOOK, PlatformEnum.INSTAGRAM, PlatformEnum.YOUTUBE]
+                else URLTypeEnum.WEB_POST
+            )
+
+            new_url = URL(
+                url=raw_url,
+                type=url_type,
+                entityId=42,
+            )
+            db.add(new_url)
+            db.commit()
+            db.refresh(new_url)
+
+            post_id = web_id = None
+            if url_type == URLTypeEnum.POST:
+                post = Post(
+                    urlId=new_url.id,
+                    comments=0,
+                    likes=0,
+                    views=0,
+                    engagementRate=0,
+                    dateAnalysed=0,
+                    isBrokenOrDeleted=False,
+                    isFetched=False
+                )
+                db.add(post)
+                db.commit()
+                db.refresh(post)
+                post_id = post.id
+            else:
+                blog = BlogWebPost(
+                    urlId=new_url.id,
+                    trafficCount=0,
+                    engagementRate=0,
+                    dateAnalysed=0,
+                    isBrokenOrDeleted=False,
+                    isFetched=False
+                )
+                db.add(blog)
+                db.commit()
+                db.refresh(blog)
+                web_id = blog.id
+
+            added_count += 1
+            success_urls.append(URLSuccessItem(
+                url_id=new_url.id,
+                url=new_url.url,
+                platform=platform,
+                post_id=post_id,
+                web_id=web_id
+            ))
+
+        except Exception as e:
+            db.rollback()
+            failed_urls.append(f"{raw_url} (error: {str(e)})")
+    if success_urls:
+        push_to_sqs(success_urls) 
+    return URLUploadResponse(
+        success=True,
+        message="URL upload completed",
+        added_count=added_count,
+        failed_urls=failed_urls,
+    )

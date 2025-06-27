@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     # CORS settings
     CORS_ORIGINS: List[str] = ["*"]
 
+    # SQS Configs
+    SQS_QUEUE_URL: Optional[str] = None
+    SQS_QUEUE_ARN: Optional[str] = None
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
