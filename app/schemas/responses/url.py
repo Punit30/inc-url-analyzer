@@ -39,6 +39,7 @@ class OverallURLSummaryResponse(BaseModel):
     youtube_percent: float
     top_performer: Optional[TopPerformingURL]
 
+
 class EngagementSnapshot(BaseModel):
     date_analysed: datetime
     likes: Optional[int]
@@ -69,3 +70,18 @@ class URLAnalysisHistoryResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class URLSuccessItem(BaseModel):
+    url_id: int
+    url: str
+    platform: PlatformEnum
+    post_id: Optional[int] = None
+    web_id: Optional[int] = None
+
+
+class URLUploadResponse(BaseModel):
+    success: bool
+    message: str
+    added_count: int
+    failed_urls: List[str]

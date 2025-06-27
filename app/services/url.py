@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Optional, Dict, Any
 from collections import defaultdict
-
+from urllib.parse import urlparse
 from sqlmodel import Session, select, func
 
 from app.models.blog_web_post import BlogWebPost
@@ -72,3 +72,31 @@ def get_platform_summary(
         "youtube_percent": round((platform_counts[PlatformEnum.YOUTUBE] / total_urls) * 100, 2) if total_urls else 0,
         "top_performer": top_performer
     }
+    }
+    
+
+def is_valid_url(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+        return bool(parsed.scheme and parsed.netloc)
+    except Exception:
+        return False
+
+
+def detect_platform(url: str) -> str:
+    try:
+        parsed = urlparse(url.lower())
+        domain = parsed.netloc.replace("www.", "")
+
+        if domain in {"facebook.com", "m.facebook.com"}:
+            return PlatformEnum.FACEBOOK.value
+        elif domain in {"instagram.com"}:
+            return PlatformEnum.INSTAGRAM.value
+        elif domain in {"youtube.com", "youtu.be"}:
+            return PlatformEnum.YOUTUBE.value
+        else:
+            return PlatformEnum.WEBSITE.value
+
+    except Exception:
+        return PlatformEnum.WEBSITE.value
+
