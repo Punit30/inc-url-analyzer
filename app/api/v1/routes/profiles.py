@@ -61,52 +61,58 @@ async def profile_metrics(
             onboard_counter[entity.platform.value] += 1
 
             for url in entity.urls or []:
-                for post in url.posts or []:
-                    plat = entity.platform.value
-                    data = platform_data.setdefault(plat, {
-                        "id": entity.id,
-                        "username": entity.username,
-                        "fullname": entity.fullname,
-                        "platform": plat,
-                        "followers": entity.followers,
-                        "created_date": entity.created_date,
-                        "total_likes": 0,
-                        "total_comments": 0,
-                        "total_views": 0,
-                        "engagement_rate_sum": 0,
-                        "post_count": 0,
-                        "broken_or_deleted_count": 0,
-                    })
-                    data["total_likes"] += post.likes
-                    data["total_comments"] += post.comments
-                    data["total_views"] += post.views or 0
-                    data["engagement_rate_sum"] += post.engagementRate
-                    data["post_count"] += 1
-                    if post.isBrokenOrDeleted:
-                        data["broken_or_deleted_count"] += 1
-
-                for blog in url.blogWebPosts or []:
-                    plat = PlatformEnum.WEBSITE.value
-                    data = platform_data.setdefault(plat, {
-                        "id": entity.id,
-                        "username": entity.username,
-                        "fullname": entity.fullname,
-                        "platform": plat,
-                        "followers": entity.followers,
-                        "created_date": entity.created_date,
-                        "total_likes": 0,
-                        "total_comments": 0,
-                        "total_views": 0,
-                        "engagement_rate_sum": 0,
-                        "post_count": 0,
-                        "broken_or_deleted_count": 0,
-                    })
-                    data["total_views"] += blog.trafficCount
-                    data["engagement_rate_sum"] += blog.engagementRate
-                    data["post_count"] += 1
-                    if blog.isBrokenOrDeleted:
-                        data["broken_or_deleted_count"] += 1
-
+                if url.posts:
+                    # Get the latest post by date_analyzed
+                    latest_post = max(url.posts, key=lambda p: p.dateAnalysed, default=None)
+                    if latest_post:
+                        plat = entity.platform.value
+                        data = platform_data.setdefault(plat, {
+                            "id": entity.id,
+                            "username": entity.username,
+                            "fullname": entity.fullname,
+                            "platform": plat,
+                            "followers": entity.followers,
+                            "created_date": entity.created_date,
+                            "total_likes": 0,
+                            "total_comments": 0,
+                            "total_views": 0,
+                            "engagement_rate_sum": 0,
+                            "post_count": 0,
+                            "broken_or_deleted_count": 0,
+                        })
+                        data["total_likes"] += latest_post.likes
+                        data["total_comments"] += latest_post.comments
+                        data["total_views"] += latest_post.views or 0
+                        data["engagement_rate_sum"] += latest_post.engagementRate
+                        data["post_count"] += 1
+                        if latest_post.isBrokenOrDeleted:
+                            data["broken_or_deleted_count"] += 1
+                    
+                if url.blogWebPosts:
+                    # Filter out blogs without date_analyzed, then get the latest
+                    valid_blogs = [b for b in url.blogWebPosts if b.dateAnalysed]
+                    if valid_blogs:
+                        latest_blog = max(valid_blogs, key=lambda b: b.dateAnalysed)
+                        plat = PlatformEnum.WEBSITE.value
+                        data = platform_data.setdefault(plat, {
+                            "id": entity.id,
+                            "username": entity.username,
+                            "fullname": entity.fullname,
+                            "platform": plat,
+                            "followers": entity.followers,
+                            "created_date": entity.created_date,
+                            "total_likes": 0,
+                            "total_comments": 0,
+                            "total_views": 0,
+                            "engagement_rate_sum": 0,
+                            "post_count": 0,
+                            "broken_or_deleted_count": 0,
+                        })
+                        data["total_views"] += latest_blog.trafficCount
+                        data["engagement_rate_sum"] += latest_blog.engagementRate
+                        data["post_count"] += 1
+                        if latest_blog.isBrokenOrDeleted:
+                            data["broken_or_deleted_count"] += 1
             for plat_key, record in platform_data.items():
                 avg_eng_rate = round(
                     record["engagement_rate_sum"] / record["post_count"], 2
@@ -183,9 +189,9 @@ Returns metrics for a specific profile:
 - Detailed comparison analysis (per post/blog with URL, platform, engagement rate)
 """
 )
+
 async def all_profile_analysis(
-    entity_id: int = Query(...,
-                           description="ID of the entity/profile to analyze"),
+    entity_id: int = Query(..., description="ID of the entity/profile to analyze"),
     db: Session = Depends(get_session)
 ):
     try:
@@ -206,34 +212,39 @@ async def all_profile_analysis(
         comparison_analysis = []
 
         for url in entity.urls or []:
-            for post in url.posts or []:
-                total_likes += post.likes
-                total_comments += post.comments
-                total_views += post.views or 0
-                engagement_sum += post.engagementRate
+            # Handle latest post
+            valid_posts = [p for p in url.posts if p.dateAnalysed]
+            if valid_posts:
+                latest_post = max(valid_posts, key=lambda p: p.dateAnalysed)
+                total_likes += latest_post.likes
+                total_comments += latest_post.comments
+                total_views += latest_post.views or 0
+                engagement_sum += latest_post.engagementRate
                 post_count += 1
 
                 comparison_analysis.append({
                     "id": url.id,
                     "url": url.url,
                     "platform": entity.platform.value,
-                    "engagement_rate": post.engagementRate
+                    "engagement_rate": latest_post.engagementRate
                 })
 
-            for blog in url.blogWebPosts or []:
-                total_views += blog.trafficCount
-                engagement_sum += blog.engagementRate
+            # Handle latest blog post
+            valid_blogs = [b for b in url.blogWebPosts if b.dateAnalysed]
+            if valid_blogs:
+                latest_blog = max(valid_blogs, key=lambda b: b.dateAnalysed)
+                total_views += latest_blog.trafficCount
+                engagement_sum += latest_blog.engagementRate
                 post_count += 1
 
                 comparison_analysis.append({
                     "id": url.id,
                     "url": url.url,
                     "platform": "WEBSITE",
-                    "engagement_rate": blog.engagementRate
+                    "engagement_rate": latest_blog.engagementRate
                 })
 
-        avg_engagement_rate = round(
-            engagement_sum / post_count, 2) if post_count > 0 else 0
+        avg_engagement_rate = round(engagement_sum / post_count, 2) if post_count > 0 else 0
 
         return {
             "id": entity.id,

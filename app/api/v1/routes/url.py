@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from app.models.enums.platform import PlatformEnum
 from app.utils.sqs import push_to_sqs
@@ -14,7 +14,7 @@ from app.models.enums.url import URLListSortingEnum, URLTypeEnum
 from app.models.post import Post
 from app.models.url import URL
 from app.schemas.responses.error import ErrorResponse
-from app.schemas.responses.url import TotalURLCountResponse, URLListingResponse, URLAnalysisSummaryResponse, OverallURLSummaryResponse, URLSuccessItem, URLUploadResponse, URLAnalysisHistoryResponse
+from app.schemas.responses.url import SimpleSuccessResponse, TotalURLCountResponse, URLListingResponse, URLAnalysisSummaryResponse, OverallURLSummaryResponse, URLSuccessItem, URLUploadResponse, URLAnalysisHistoryResponse
 from app.services.url import detect_platform, get_platform_summary, is_valid_url
 
 router = APIRouter()
@@ -421,10 +421,68 @@ async def upload_urls(
             db.rollback()
             failed_urls.append(f"{raw_url} (error: {str(e)})")
     if success_urls:
-        push_to_sqs(success_urls) 
+        push_to_sqs(success_urls)
     return URLUploadResponse(
         success=True,
         message="URL upload completed",
         added_count=added_count,
         failed_urls=failed_urls,
     )
+
+
+@router.post("/re-analyze-url", response_model=SimpleSuccessResponse, summary="Re-analyze URL by ID",
+             responses={
+                 200: {"description": "URL re-analysis triggered"},
+                 404: {"description": "Missing 'url_id' in request body."},
+                 500: {"description": "Server error"}
+             }
+             )
+async def reanalyze_url(
+    body: Dict[str, int] = Body(..., example={"url_id": 123}),
+    db: Session = Depends(get_session)
+):
+    url_id = body.get("url_id")
+    if not url_id:
+        raise HTTPException(
+            status_code=400, detail="Missing 'url_id' in request body.")
+
+    url = db.exec(select(URL).where(URL.id == url_id)).first()
+    if not url:
+        raise HTTPException(
+            status_code=404, detail=f"URL with id {url_id} not found.")
+
+    platform = detect_platform(url.url)
+    try:
+        post_id = web_id = None
+        if url.type == URLTypeEnum.POST:
+            post = db.exec(select(Post).where(Post.urlId == url.id)).first()
+            if post:
+                post.isFetched = False
+                db.add(post)
+                post_id = post.id
+        else:
+            blog = db.exec(select(BlogWebPost).where(
+                BlogWebPost.urlId == url.id)).first()
+            if blog:
+                blog.isFetched = False
+                db.add(blog)
+                web_id = blog.id
+
+        db.commit()
+        push_to_sqs([URLSuccessItem(
+            url_id=url.id,
+            url=url.url,
+            platform=platform,
+            post_id=post_id,
+            web_id=web_id,
+            is_reanalysis=True
+        )])
+        return SimpleSuccessResponse(
+            success=True,
+            message="URL re-analysis triggered",
+        )
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"Failed to re-analyze URL: {str(e)}")
