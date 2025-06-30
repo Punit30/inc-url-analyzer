@@ -89,7 +89,3 @@ Please follow the below tagging convention in commit messages:
 | `FIXES`   | For fixing bugs                                               |
 | `CHANGES` | For architectural or structural changes                      |
 
-**Example Commit Message:**
-```
-ADDED: Implemented initial Twilio call webhook integration
-```
